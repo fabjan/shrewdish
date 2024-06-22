@@ -42,7 +42,7 @@ fun showConnInfo (
 
 fun hello conn =
   sendCommand conn ["HELLO"] (
-  fn Redis.Value.Array connInfo => Log.info ("Connected to Redis " ^ showConnInfo connInfo)
+  fn Redis.Value.Array connInfo => Log.info ("Connected to " ^ showConnInfo connInfo)
     | v => Log.error ("Unexpected reply from Redis" ^ Redis.Value.toString v)
   )
 
