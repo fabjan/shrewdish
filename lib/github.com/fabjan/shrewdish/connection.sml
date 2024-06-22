@@ -17,9 +17,14 @@
 structure Connection =
 struct
 
-type active_sock = (Socket.active Socket.stream) INetSock.sock
+type t = {
+  host : string,
+  port : int,
+  instream : TextIO.instream,
+  outstream : TextIO.outstream
+}
 
-fun connect host port : active_sock option =
+fun connect host port : t option =
   case NetHostDB.getByName host of
     NONE => (
       Log.error ("connect: host " ^ host ^ " not found");
@@ -28,72 +33,33 @@ fun connect host port : active_sock option =
   | SOME h =>
     let
       val addr = INetSock.toAddr (NetHostDB.addr h, port)
-      val sock = INetSock.TCP.socket () : active_sock
+      val sock = INetSock.TCP.socket () : SockIO.active_sock
       val _ = Socket.connect (sock, addr)
+      val instream = SockIO.textInStream sock
+      val outstream = SockIO.textOutStream sock
     in
-      SOME sock
+      SOME {
+        host = host,
+        port = port,
+        instream = instream,
+        outstream = outstream
+      }
     end
     handle e => (
       Log.error ("connect: " ^ General.exnMessage e);
       NONE
     )
 
-fun sockVecReader (sock : active_sock) : TextPrimIO.reader =
+fun sendCommand (conn: t) (cmd : string list) : Redis.Value.t option =
   let
-    fun readVec len =
-      let
-        val bytes = Socket.recvVec (sock, len)
-        val s = Byte.bytesToString bytes
-      in
-        Log.debug ("sockVecReader: read " ^ s);
-        s
-      end
-    fun close () = Socket.close sock
-    val iodesc = Socket.ioDesc sock
-  in
-    TextPrimIO.RD {
-      name = "sockVecReader",
-      chunkSize = 1500, (* MTU because why not? *)
-      readVec = SOME readVec,
-      readArr = NONE,
-      readVecNB = NONE,
-      readArrNB = NONE,
-      block = NONE,
-      canInput = NONE,
-      avail = fn () => NONE,
-      getPos = NONE,
-      setPos = NONE,
-      endPos = NONE,
-      verifyPos = NONE,
-      close = close,
-      ioDesc = SOME iodesc
-    }
-  end
-
-fun sockStream (sock : active_sock) : TextIO.instream =
-  let
-    val reader = sockVecReader sock
-    val stream = TextIO.StreamIO.mkInstream (reader, "")
-  in
-    TextIO.mkInstream stream
-  end
-
-fun sendCommand (sock : active_sock) (cmd : string list) : Redis.Value.t option =
-  let
-    fun pushAllBytes _ 0 = ()
-      | pushAllBytes bytes n =
-        let
-          val m = Socket.sendVec (sock, bytes)
-          val bytes = Word8VectorSlice.subslice (bytes, m, NONE)
-        in
-          pushAllBytes bytes (n - m)
-        end
     val bulkStrings = List.map (fn s => Redis.Value.BulkString (SOME s)) cmd
-    val bytes = Byte.stringToBytes (Redis.Value.encode (Redis.Value.Array bulkStrings))
+    val message = Redis.Value.Array bulkStrings
+    val outstream = #outstream conn
+    val instream = #instream conn
   in
-    pushAllBytes (Word8VectorSlice.full bytes) (Word8Vector.length bytes);
+    Redis.Value.write outstream message;
     Log.debug "sendCommand: sent command, reading response";
-    Redis.Value.decode (sockStream sock)
+    Redis.Value.read instream
   end
   handle e => (
     Log.error ("sendCommand: " ^ General.exnMessage e);

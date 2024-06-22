@@ -44,10 +44,9 @@ fun encode (String s) = "+" ^ s ^ "\r\n"
   | encode (BulkString (SOME s)) = "$" ^ Int.toString (size s) ^ "\r\n" ^ s ^ "\r\n"
   | encode (Array l) = "*" ^ Int.toString (length l) ^ "\r\n" ^ String.concat (map encode l)
 
-infix 5 |>
-fun x |> f = f x
+fun write (stream: TextIO.outstream) (v: t) = TextIO.output (stream, encode v)
 
-fun decode (stream: TextIO.instream) : t option =
+fun read (stream: TextIO.instream) : t option =
   let
     fun fail reason = (
       Log.error ("decode failed: " ^ reason ^ "\n");
@@ -78,9 +77,12 @@ fun decode (stream: TextIO.instream) : t option =
 
     fun readArray acc 0 = SOME (Array (List.rev acc))
       | readArray acc len =
-        case decode stream of
+        case read stream of
           NONE => fail "unexpected end of input"
         | SOME v => readArray (v :: acc) (len - 1)
+
+    infix 5 |>
+    fun x |> f = f x
 
     fun readValue () =
       case TextIO.input1 stream of
