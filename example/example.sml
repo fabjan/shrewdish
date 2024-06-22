@@ -55,6 +55,22 @@ fun mustConnect host port =
     | SOME conn => conn
   end
 
+fun repeat 0 _ = ()
+  | repeat n f = (f (); repeat (n - 1) f)
+
+fun infiniteLoop conn =
+  let
+    val t0 = Time.now ()
+    val _ = ping conn
+    val now = Time.now ()
+    val duration = Time.toMilliseconds (Time.-(now, t0))
+  in
+    Log.info ("Current time: " ^ Date.fmt "%Y-%m-%d %H:%M:%S" (Date.fromTimeLocal now));
+    Log.info ("PING Duration: " ^ (LargeInt.toString duration) ^ " ms");
+    OS.Process.sleep (Time.fromSeconds 1);
+    infiniteLoop conn
+  end
+
 fun main () =
   let
     val subcommand = CommandLine.arguments ()
@@ -67,7 +83,12 @@ fun main () =
     case subcommand of
       ["hello"] => hello conn
     | ["ping"] => ping conn
+    | ["loop"] => infiniteLoop conn
     | ["incr", key] => incrCounter conn key
+    | ["incr", key, times] =>
+      (case Int.fromString times of
+        SOME n => repeat n (fn () => incrCounter conn key)
+      | NONE => Log.error "Invalid number of times")
     | _ => Log.error "Invalid subcommand"
   end
   handle ex => Log.error ("Error: " ^ General.exnMessage ex)
