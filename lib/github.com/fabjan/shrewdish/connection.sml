@@ -78,7 +78,7 @@ fun sockStream (sock : active_sock) : TextIO.instream =
     TextIO.mkInstream stream
   end
 
-fun sendCommand (sock : active_sock) (cmd : string) : Redis.Value.t option =
+fun sendCommand (sock : active_sock) (cmd : string list) : Redis.Value.t option =
   let
     fun pushAllBytes _ 0 = ()
       | pushAllBytes bytes n =
@@ -88,14 +88,11 @@ fun sendCommand (sock : active_sock) (cmd : string) : Redis.Value.t option =
         in
           pushAllBytes bytes (n - m)
         end
-    fun ensureNewline s =
-      if String.isSuffix "\n" s
-      then s
-      else s ^ "\n"
-    val bytes = Byte.stringToBytes (ensureNewline cmd)
+    val bulkStrings = List.map (fn s => Redis.Value.BulkString (SOME s)) cmd
+    val bytes = Byte.stringToBytes (Redis.Value.encode (Redis.Value.Array bulkStrings))
   in
     pushAllBytes (Word8VectorSlice.full bytes) (Word8Vector.length bytes);
-    Log.debug ("sendCommand: sent command " ^ cmd);
+    Log.debug "sendCommand: sent command, reading response";
     Redis.Value.decode (sockStream sock)
   end
   handle e => (

@@ -19,13 +19,13 @@ fun sendCommand conn cmd andThen =
   | _ => Log.error "No reply from Redis"
 
 fun incrCounter conn key =
-  sendCommand conn ("INCR " ^ key) (
+  sendCommand conn ["INCR", key] (
   fn Redis.Value.Integer i => Log.info ("Counter " ^ key ^ " is now " ^ Int.toString i)
     | _ => Log.error "Unexpected reply from Redis"
   )
 
 fun ping conn =
-  sendCommand conn "PING" (
+  sendCommand conn ["PING"] (
   fn Redis.Value.String "PONG" => Log.info "PONG"
     | v => Log.error ("Unexpected reply from Redis" ^ Redis.Value.toString v)
   )
@@ -41,7 +41,7 @@ fun showConnInfo (
   | showConnInfo _ = "Unknown Redis server"
 
 fun hello conn =
-  sendCommand conn "HELLO" (
+  sendCommand conn ["HELLO"] (
   fn Redis.Value.Array connInfo => Log.info ("Connected to Redis " ^ showConnInfo connInfo)
     | v => Log.error ("Unexpected reply from Redis" ^ Redis.Value.toString v)
   )
