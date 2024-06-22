@@ -1,0 +1,8 @@
+local
+  $(SML_LIB)/basis/basis.mlb
+  log.sml
+  redis.sml
+  connection.sml
+in
+  shrewdish.sml
+end
