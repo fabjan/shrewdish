@@ -9,6 +9,7 @@ A Redis client for Standard ML programs.
 ```sml
 fun main () =
   let
+    open Shrewdish
     val (host, port) = ("localhost", 6379)
     val SOME conn = Shrewdish.connect host port
   in
