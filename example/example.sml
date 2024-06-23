@@ -2,6 +2,14 @@ local
 
 open Shrewdish
 
+structure Log =
+struct
+  fun debug msg = Shrewdish.Log.debug ("[Example] " ^ msg)
+  fun info msg = Shrewdish.Log.info ("[Example] " ^ msg)
+  fun warn msg = Shrewdish.Log.warn ("[Example] " ^ msg)
+  fun error msg = Shrewdish.Log.error ("[Example] " ^ msg)
+end
+
 in
 
 fun parseAddr addr =
@@ -72,13 +80,14 @@ fun infiniteLoop conn =
 
 fun main () =
   let
+    val _ = Shrewdish.Log.setLevel Shrewdish.Log.DEBUG
     val subcommand = CommandLine.arguments ()
     val endpoint = Option.getOpt (OS.Process.getEnv "REDIS_ENDPOINT", "localhost:6379")
     val (host, port) = parseAddr endpoint
     val _ = Log.info ("Connecting to Redis at " ^ endpoint ^ " ...")
     val conn = mustConnect host port
   in
-    Log.debug "Connected\n";
+    Log.debug "Connected";
     case subcommand of
       ["hello"] => hello conn
     | ["ping"] => ping conn

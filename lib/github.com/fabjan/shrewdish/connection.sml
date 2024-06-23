@@ -53,8 +53,9 @@ fun sendCommand (conn: t) (cmd : string list) : (Redis.Value.t, send_error) resu
     val outstream = #outstream conn
     val instream = #instream conn
   in
+    Log.debug "[Connection] sending command";
     Redis.Value.write outstream message;
-    Log.debug "sendCommand: sent command, reading response";
+    Log.debug "[Connection] reading response";
     OK (Redis.Value.read instream)
   end
   handle Redis.Value.WriteError s => ERROR (WriteFailed s)
