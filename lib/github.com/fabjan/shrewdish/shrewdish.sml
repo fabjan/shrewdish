@@ -17,6 +17,7 @@
 structure Shrewdish =
 struct
 
+structure Result = Result
 structure Log = Log
 structure Redis = Redis
 structure Connection = Connection

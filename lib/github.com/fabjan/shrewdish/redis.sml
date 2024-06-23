@@ -44,60 +44,60 @@ fun encode (String s) = "+" ^ s ^ "\r\n"
   | encode (BulkString (SOME s)) = "$" ^ Int.toString (size s) ^ "\r\n" ^ s ^ "\r\n"
   | encode (Array l) = "*" ^ Int.toString (length l) ^ "\r\n" ^ String.concat (map encode l)
 
-fun write (stream: TextIO.outstream) (v: t) = TextIO.output (stream, encode v)
+exception ReadError of string
+exception WriteError of string
+exception ParseError of string
 
-fun read (stream: TextIO.instream) : t option =
+fun write (stream: TextIO.outstream) (v: t) =
+  TextIO.output (stream, encode v)
+  handle exn => raise WriteError (General.exnMessage exn)
+
+fun read (stream: TextIO.instream) : t =
   let
-    fun fail reason = (
-      Log.error ("decode failed: " ^ reason ^ "\n");
-      NONE
-    )
+    infix 5 |>
+    fun x |> f = f x
 
     fun readLine () =
       case TextIO.inputLine stream of
-        NONE => fail "unexpected end of input"
+        NONE => raise ReadError "unexpected end of input reading line"
       | SOME s =>
         if String.isSuffix "\r\n" s
-        then SOME (String.substring (s, 0, size s - 2))
-        else fail "expected CRLF"
+        then String.substring (s, 0, size s - 2)
+        else raise ParseError "missing CRLF after line"
 
-    fun readBulkString 0 = SOME (BulkString NONE)
+    fun readInt () =
+      case readLine () |> Int.fromString of
+        NONE => raise ParseError "invalid integer"
+      | SOME i => i
+
+    fun readBulkString 0 = BulkString NONE
       | readBulkString len =
         let
           val s = TextIO.inputN (stream, len)
           val crlf = TextIO.inputN (stream, 2)
-          val read = String.size s
+          val received = String.size s
         in
-          if read <> len
-          then fail ("expected " ^ Int.toString len ^ " bytes, got " ^ Int.toString read)
+          if received <> len
+          then raise ParseError ("bulk string expected " ^ Int.toString len ^ " bytes, got " ^ Int.toString received)
           else if crlf <> "\r\n"
-          then fail "expected CRLF"
-          else SOME (BulkString (SOME s))
+          then raise ParseError "expected CRLF after bulk string"
+          else BulkString (SOME s)
         end
 
-    fun readArray acc 0 = SOME (Array (List.rev acc))
-      | readArray acc len =
-        case read stream of
-          NONE => fail "unexpected end of input"
-        | SOME v => readArray (v :: acc) (len - 1)
+    fun readArray acc 0 = Array (List.rev acc)
+      | readArray acc len = readArray ((read stream) :: acc) (len - 1)
 
-    infix 5 |>
-    fun x |> f = f x
-
-    fun readValue () =
-      case TextIO.input1 stream of
-        NONE => fail "unexpected end of input"
-      | SOME c =>
-        case c of
-          #"+" => readLine () |> Option.map String
-        | #"-" => readLine () |> Option.map Error
-        | #":" => readLine () |> Option.mapPartial Int.fromString |> Option.map Integer
-        | #"$" => readLine () |> Option.mapPartial Int.fromString |> Option.mapPartial readBulkString
-        | #"*" => readLine () |> Option.mapPartial Int.fromString |> Option.mapPartial (readArray [])
-        | _ => fail "unexpected character"
   in
-    readValue ()
+    case TextIO.input1 stream of
+      NONE => raise ReadError "unexpected end of input reading type"
+    | SOME #"+" => readLine () |> String
+    | SOME #"-" => readLine () |> Error
+    | SOME #":" => readInt () |> Integer
+    | SOME #"$" => readInt () |> readBulkString
+    | SOME #"*" => readInt () |> readArray []
+    | SOME c => raise ParseError ("unexpected character reading type: '" ^ Char.toString c ^ "'")
   end
+  handle exn => raise ReadError (General.exnMessage exn)
 
 end
 

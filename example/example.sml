@@ -15,8 +15,10 @@ fun parseAddr addr =
 
 fun sendCommand conn cmd andThen =
   case Shrewdish.sendCommand conn cmd of
-    SOME v => andThen v
-  | _ => Log.error "No reply from Redis"
+    Result.OK v => andThen v
+  | Result.ERROR (Connection.WriteFailed s) => Log.error ("Write failed: " ^ s)
+  | Result.ERROR (Connection.ReadFailed s) => Log.error ("Read failed: " ^ s)
+  handle exn => Log.error ("Unhandled exception: " ^ General.exnMessage exn)
 
 fun incrCounter conn key =
   sendCommand conn ["INCR", key] (
@@ -47,13 +49,10 @@ fun hello conn =
   )
 
 fun mustConnect host port =
-  let
-    val conn = Shrewdish.connect host port
-  in
-    case conn of
-      NONE => raise Fail "Failed to connect to Redis"
-    | SOME conn => conn
-  end
+  case Shrewdish.connect host port of
+    Result.ERROR Connection.UnknownHost => raise Fail "Cannot connect to Redis: unknown host"
+  | Result.ERROR (Connection.ConnectionFailed s) => raise Fail ("Cannot connect to Redis: " ^ s)
+  | Result.OK conn => conn
 
 fun repeat 0 _ = ()
   | repeat n f = (f (); repeat (n - 1) f)
@@ -91,6 +90,6 @@ fun main () =
       | NONE => Log.error "Invalid number of times")
     | _ => Log.error "Invalid subcommand"
   end
-  handle ex => Log.error ("Error: " ^ General.exnMessage ex)
+  handle ex => Log.error ("Exiting: " ^ General.exnMessage ex)
 
 end
