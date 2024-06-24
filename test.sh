@@ -16,7 +16,7 @@ greptest()
 
     # shellcheck disable=SC2086
     output=$($testbin $cmdline)
-    if echo "$output" | grep -q "$expected"; then
+    if echo "$output" | grep -q -E "$expected"; then
         printf "."
     else
         echo
@@ -29,7 +29,7 @@ greptest()
 
 echo "Running tests"
 greptest "Connected to Redis server version" "hello"
-greptest PONG "ping"
+greptest "ping: [0-9]+ms" "ping"
 newkey=$(uuidgen)
 greptest "Counter $newkey is now 1" "incr $newkey"
 greptest "Counter $newkey is now 11" "incr $newkey 10"
