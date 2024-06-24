@@ -70,7 +70,7 @@ fun read (stream: TextIO.instream) : t =
         NONE => raise ParseError "invalid integer"
       | SOME i => i
 
-    fun readBulkString 0 = BulkString NONE
+    fun readBulkString ~1 = BulkString NONE
       | readBulkString len =
         let
           val s = TextIO.inputN (stream, len)
