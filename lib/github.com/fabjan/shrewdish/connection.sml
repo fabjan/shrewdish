@@ -14,6 +14,11 @@
  * limitations under the License.
  *)
 
+(*!
+ * A connection to a Redis server.
+ *
+ * You deal with any connection errors.
+ *)
 structure Connection =
 struct
 
@@ -24,11 +29,11 @@ type t = {
   outstream : TextIO.outstream
 }
 
-datatype connection_error = UnknownHost | ConnectionFailed of string
+datatype connection_error = UnknownHost of string | ConnectionFailed of string
 
 fun connect host port : (t, connection_error) result =
   case NetHostDB.getByName host of
-    NONE => ERROR UnknownHost
+    NONE => ERROR (UnknownHost host)
   | SOME h =>
     let
       val addr = INetSock.toAddr (NetHostDB.addr h, port)
@@ -60,6 +65,5 @@ fun sendCommand (conn: t) (cmd : string list) : (Redis.Value.t, send_error) resu
   end
   handle Redis.Value.WriteError s => ERROR (WriteFailed s)
        | Redis.Value.ReadError s => ERROR (ReadFailed s)
-       | Redis.Value.ParseError s => ERROR (ReadFailed s)
 
 end

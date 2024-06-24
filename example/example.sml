@@ -35,10 +35,15 @@ fun incrCounter conn key =
   )
 
 fun ping conn =
-  sendCommand conn ["PING"] (
-  fn Redis.Value.String "PONG" => Log.info "PONG"
-    | v => Log.error ("Unexpected reply from Redis" ^ Redis.Value.toString v)
-  )
+  let
+    val t0 = Time.now ()
+    fun stop () = Time.toMilliseconds (Time.-(Time.now (), t0))
+  in
+    sendCommand conn ["PING"] (
+      fn Redis.Value.String "PONG" => Log.info ("ping: " ^ LargeInt.toString (stop ()) ^ "ms")
+      | _ => Log.error "Unexpected reply from Redis"
+    )
+  end
 
 fun showConnInfo (
   Redis.Value.BulkString (SOME "server") ::
@@ -58,29 +63,21 @@ fun hello conn =
 
 fun mustConnect host port =
   case Shrewdish.connect host port of
-    Result.ERROR Connection.UnknownHost => raise Fail "Cannot connect to Redis: unknown host"
+    Result.ERROR (Connection.UnknownHost h) => raise Fail ("Cannot connect to Redis: unknown host: " ^ h)
   | Result.ERROR (Connection.ConnectionFailed s) => raise Fail ("Cannot connect to Redis: " ^ s)
   | Result.OK conn => conn
 
 fun repeat 0 _ = ()
   | repeat n f = (f (); repeat (n - 1) f)
 
-fun infiniteLoop conn =
-  let
-    val t0 = Time.now ()
-    val _ = ping conn
-    val now = Time.now ()
-    val duration = Time.toMilliseconds (Time.-(now, t0))
-  in
-    Log.info ("Current time: " ^ Date.fmt "%Y-%m-%d %H:%M:%S" (Date.fromTimeLocal now));
-    Log.info ("PING Duration: " ^ (LargeInt.toString duration) ^ " ms");
-    OS.Process.sleep (Time.fromSeconds 1);
-    infiniteLoop conn
-  end
+fun infiniteLoop conn = (
+  ping conn;
+  OS.Process.sleep (Time.fromSeconds 1);
+  infiniteLoop conn
+)
 
 fun main () =
   let
-    val _ = Shrewdish.Log.setLevel Shrewdish.Log.DEBUG
     val subcommand = CommandLine.arguments ()
     val endpoint = Option.getOpt (OS.Process.getEnv "REDIS_ENDPOINT", "localhost:6379")
     val (host, port) = parseAddr endpoint
