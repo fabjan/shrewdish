@@ -42,8 +42,7 @@ fun log level message =
       val timeString = Date.fmt "%Y-%m-%dT%H:%M:%SZ" now
       val levelString = levelString level
     in
-      TextIO.output (TextIO.stdErr, timeString ^ " " ^ levelString ^ " " ^ message ^ "\n");
-      TextIO.flushOut TextIO.stdErr
+      print (timeString ^ " " ^ levelString ^ " " ^ message ^ "\n")
     end
 
 fun debug message = log DEBUG message
