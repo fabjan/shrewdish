@@ -1,5 +1,6 @@
 local
   $(SML_LIB)/basis/basis.mlb
+  result.sml
   log.sml
   redis.sml
   sockio.sml

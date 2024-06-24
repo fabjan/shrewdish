@@ -34,9 +34,16 @@ fun levelString DEBUG = "DEBUG"
   | levelString ERROR = "ERROR"
 
 fun log level message =
-  if ord (!currentLevel) <= ord level
-  then print (levelString level ^ ": " ^ message ^ "\n")
-  else ()
+  if ord level < ord (!currentLevel)
+  then ()
+  else
+    let
+      val now = Date.fromTimeUniv (Time.now ())
+      val timeString = Date.fmt "%Y-%m-%dT%H:%M:%SZ" now
+      val levelString = levelString level
+    in
+      print (timeString ^ " " ^ levelString ^ " " ^ message ^ "\n")
+    end
 
 fun debug message = log DEBUG message
 fun info message = log INFO message

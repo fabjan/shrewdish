@@ -2,6 +2,14 @@ local
 
 open Shrewdish
 
+structure Log =
+struct
+  fun debug msg = Shrewdish.Log.debug ("[Example] " ^ msg)
+  fun info msg = Shrewdish.Log.info ("[Example] " ^ msg)
+  fun warn msg = Shrewdish.Log.warn ("[Example] " ^ msg)
+  fun error msg = Shrewdish.Log.error ("[Example] " ^ msg)
+end
+
 in
 
 fun parseAddr addr =
@@ -15,8 +23,10 @@ fun parseAddr addr =
 
 fun sendCommand conn cmd andThen =
   case Shrewdish.sendCommand conn cmd of
-    SOME v => andThen v
-  | _ => Log.error "No reply from Redis"
+    Result.OK v => andThen v
+  | Result.ERROR (Connection.WriteFailed s) => Log.error ("Write failed: " ^ s)
+  | Result.ERROR (Connection.ReadFailed s) => Log.error ("Read failed: " ^ s)
+  handle exn => Log.error ("Unhandled exception: " ^ General.exnMessage exn)
 
 fun incrCounter conn key =
   sendCommand conn ["INCR", key] (
@@ -25,10 +35,15 @@ fun incrCounter conn key =
   )
 
 fun ping conn =
-  sendCommand conn ["PING"] (
-  fn Redis.Value.String "PONG" => Log.info "PONG"
-    | v => Log.error ("Unexpected reply from Redis" ^ Redis.Value.toString v)
-  )
+  let
+    val t0 = Time.now ()
+    fun stop () = Time.toMilliseconds (Time.-(Time.now (), t0))
+  in
+    sendCommand conn ["PING"] (
+      fn Redis.Value.String "PONG" => Log.info ("ping: " ^ LargeInt.toString (stop ()) ^ "ms")
+      | _ => Log.error "Unexpected reply from Redis"
+    )
+  end
 
 fun showConnInfo (
   Redis.Value.BulkString (SOME "server") ::
@@ -47,29 +62,19 @@ fun hello conn =
   )
 
 fun mustConnect host port =
-  let
-    val conn = Shrewdish.connect host port
-  in
-    case conn of
-      NONE => raise Fail "Failed to connect to Redis"
-    | SOME conn => conn
-  end
+  case Shrewdish.connect host port of
+    Result.ERROR (Connection.UnknownHost h) => raise Fail ("Cannot connect to Redis: unknown host: " ^ h)
+  | Result.ERROR (Connection.ConnectionFailed s) => raise Fail ("Cannot connect to Redis: " ^ s)
+  | Result.OK conn => conn
 
 fun repeat 0 _ = ()
   | repeat n f = (f (); repeat (n - 1) f)
 
-fun infiniteLoop conn =
-  let
-    val t0 = Time.now ()
-    val _ = ping conn
-    val now = Time.now ()
-    val duration = Time.toMilliseconds (Time.-(now, t0))
-  in
-    Log.info ("Current time: " ^ Date.fmt "%Y-%m-%d %H:%M:%S" (Date.fromTimeLocal now));
-    Log.info ("PING Duration: " ^ (LargeInt.toString duration) ^ " ms");
-    OS.Process.sleep (Time.fromSeconds 1);
-    infiniteLoop conn
-  end
+fun infiniteLoop conn = (
+  ping conn;
+  OS.Process.sleep (Time.fromSeconds 1);
+  infiniteLoop conn
+)
 
 fun main () =
   let
@@ -79,7 +84,7 @@ fun main () =
     val _ = Log.info ("Connecting to Redis at " ^ endpoint ^ " ...")
     val conn = mustConnect host port
   in
-    Log.debug "Connected\n";
+    Log.debug "Connected";
     case subcommand of
       ["hello"] => hello conn
     | ["ping"] => ping conn
@@ -91,6 +96,6 @@ fun main () =
       | NONE => Log.error "Invalid number of times")
     | _ => Log.error "Invalid subcommand"
   end
-  handle ex => Log.error ("Error: " ^ General.exnMessage ex)
+  handle ex => Log.error ("Exiting: " ^ General.exnMessage ex)
 
 end

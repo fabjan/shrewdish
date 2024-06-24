@@ -14,22 +14,26 @@
  * limitations under the License.
  *)
 
+(*!
+ * A connection to a Redis server.
+ *
+ * You deal with any connection errors.
+ *)
 structure Connection =
 struct
 
+open Result
+
 type t = {
-  host : string,
-  port : int,
   instream : TextIO.instream,
   outstream : TextIO.outstream
 }
 
-fun connect host port : t option =
+datatype connection_error = UnknownHost of string | ConnectionFailed of string
+
+fun connect host port : (t, connection_error) result =
   case NetHostDB.getByName host of
-    NONE => (
-      Log.error ("connect: host " ^ host ^ " not found");
-      NONE
-    )
+    NONE => ERROR (UnknownHost host)
   | SOME h =>
     let
       val addr = INetSock.toAddr (NetHostDB.addr h, port)
@@ -38,32 +42,28 @@ fun connect host port : t option =
       val instream = SockIO.textInStream sock
       val outstream = SockIO.textOutStream sock
     in
-      SOME {
-        host = host,
-        port = port,
+      OK {
         instream = instream,
         outstream = outstream
       }
     end
-    handle e => (
-      Log.error ("connect: " ^ General.exnMessage e);
-      NONE
-    )
+    handle e => ERROR (ConnectionFailed (General.exnMessage e))
 
-fun sendCommand (conn: t) (cmd : string list) : Redis.Value.t option =
+datatype send_error = WriteFailed of string | ReadFailed of string
+
+fun sendCommand (conn: t) (cmd : string list) : (Redis.Value.t, send_error) result =
   let
     val bulkStrings = List.map (fn s => Redis.Value.BulkString (SOME s)) cmd
     val message = Redis.Value.Array bulkStrings
     val outstream = #outstream conn
     val instream = #instream conn
   in
+    Log.debug "[Connection] sending command";
     Redis.Value.write outstream message;
-    Log.debug "sendCommand: sent command, reading response";
-    Redis.Value.read instream
+    Log.debug "[Connection] reading response";
+    OK (Redis.Value.read instream)
   end
-  handle e => (
-    Log.error ("sendCommand: " ^ General.exnMessage e);
-    NONE
-  )
+  handle Redis.Value.WriteError s => ERROR (WriteFailed s)
+       | Redis.Value.ReadError s => ERROR (ReadFailed s)
 
 end

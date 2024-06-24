@@ -26,7 +26,7 @@ fun textReader (sock : active_sock) : TextPrimIO.reader =
         val bytes = Socket.recvVec (sock, len)
         val s = Byte.bytesToString bytes
       in
-        Log.debug ("sockVecReader: read " ^ s);
+        Log.debug ("[SockIO] read: \"" ^ String.toString s ^ "\"");
         s
       end
     fun close () = Socket.close sock
@@ -60,7 +60,7 @@ fun textWriter (sock : active_sock) : TextPrimIO.writer =
         val vec = Word8VectorSlice.full bytes
         val sent = Socket.sendVec (sock, vec)
       in
-        Log.debug ("sockVecWriter: wrote " ^ s);
+        Log.debug ("[SockIO] wrote: \"" ^ String.toString s ^ "\"");
         sent
       end
     fun writeArr arr = writeVec (Substring.full (CharArraySlice.vector arr))
