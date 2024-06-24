@@ -89,6 +89,11 @@ fun main () =
       ["hello"] => hello conn
     | ["ping"] => ping conn
     | ["loop"] => infiniteLoop conn
+    | ["get", key] => sendCommand conn ["GET", key] (
+        fn Redis.Value.BulkString (SOME value) => Log.info ("Value of " ^ key ^ " is " ^ value)
+        | Redis.Value.BulkString NONE => Log.info ("Key " ^ key ^ " not found")
+        | _ => Log.error "Unexpected reply from Redis"
+      )
     | ["incr", key] => incrCounter conn key
     | ["incr", key, times] =>
       (case Int.fromString times of

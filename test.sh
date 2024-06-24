@@ -31,8 +31,10 @@ echo "Running tests"
 greptest "Connected to Redis server version" "hello"
 greptest "ping: [0-9]+ms" "ping"
 newkey=$(uuidgen)
+greptest "Key $newkey not found" "get $newkey"
 greptest "Counter $newkey is now 1" "incr $newkey"
 greptest "Counter $newkey is now 11" "incr $newkey 10"
+greptest "Value of $newkey is 11" "get $newkey"
 
 if [ $failures -eq 0 ]; then
     echo
